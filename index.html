@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>⚡ Lightning Monitor</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0d1117;
+    --panel: #161b22;
+    --border: #2d333b;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --accent: #58a6ff;
+    --danger: #f85149;
+    --ok: #3fb950;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    min-height: 100vh;
+    padding: 20px;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  header h1 { font-size: 1.6rem; margin-bottom: 6px; }
+
+  .status-bar {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 18px;
+    font-size: 0.85rem;
+    flex-wrap: wrap;
+  }
+
+  .badge {
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+  .badge.online  { background: rgba(63,185,80,0.15); color: var(--ok); }
+  .badge.offline { background: rgba(248,81,73,0.15); color: var(--danger); }
+
+  .muted { color: var(--muted); }
+
+  .alert-banner {
+    background: linear-gradient(90deg, #7a1f1f, #b62323);
+    color: #fff;
+    padding: 14px;
+    border-radius: 10px;
+    text-align: center;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    margin-bottom: 18px;
+    animation: pulse 1s infinite;
+  }
+  .hidden { display: none; }
+
+  @keyframes pulse {
+    0%,100% { opacity: 1; box-shadow: 0 0 0 0 rgba(248,81,73,0.7); }
+    50%     { opacity: 0.85; box-shadow: 0 0 0 12px rgba(248,81,73,0); }
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+  }
+  .card-label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  .card-value {
+    font-size: 1.8rem;
+    font-weight: 700;
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+  }
+  .card-value small {
+    font-size: 0.9rem;
+    font-weight: 400;
+    color: var(--muted);
+  }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 20px;
+  }
+  .panel h2 {
+    font-size: 1rem;
+    margin-bottom: 12px;
+    color: var(--accent);
+  }
+
+  .state-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  .state-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9rem;
+  }
+  .dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--muted);
+    flex-shrink: 0;
+  }
+  .state-item.active   .dot { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+  .state-item.inactive .dot { background: var(--muted); }
+  .state-item.alert    .dot { background: var(--danger); box-shadow: 0 0 8px var(--danger); }
+
+  .uptime { font-size: 0.8rem; margin-top: 6px; }
+
+  .event-list {
+    list-style: none;
+    max-height: 300px;
+    overflow-y: auto;
+  }
+  .event-list li {
+    padding: 10px;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.85rem;
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .event-list li:last-child { border-bottom: none; }
+  .event-list .event-time { color: var(--muted); font-size: 0.75rem; }
+  .event-list .event-info { color: var(--danger); font-weight: 600; }
+</style>
+</head>
+<body>
+
+  <header>
+    <h1>⚡ Lightning Monitor</h1>
+    <div class="status-bar">
+      <span id="connStatus" class="badge offline">Disconnected</span>
+      <span id="lastUpdate" class="muted">Waiting for data...</span>
+    </div>
+  </header>
+
+  <div id="alertBanner" class="alert-banner hidden">
+    ⚡ LIGHTNING DETECTED — RELAY OFF — BUZZER ON ⚡
+  </div>
+
+  <section class="grid">
+    <div class="card">
+      <div class="card-label">Temperature</div>
+      <div class="card-value"><span id="temp">--</span><small>°C</small></div>
+    </div>
+    <div class="card">
+      <div class="card-label">Humidity</div>
+      <div class="card-value"><span id="hum">--</span><small>%</small></div>
+    </div>
+    <div class="card">
+      <div class="card-label">Ambient Light</div>
+      <div class="card-value"><span id="lux">--</span><small>lux</small></div>
+    </div>
+    <div class="card">
+      <div class="card-label">Proximity</div>
+      <div class="card-value"><span id="prox">--</span></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Device State</h2>
+    <div class="state-grid">
+      <div class="state-item" id="stateLightning"><span class="dot"></span> Lightning</div>
+      <div class="state-item" id="stateRelay"><span class="dot"></span> Relay</div>
+      <div class="state-item" id="stateBuzzer"><span class="dot"></span> Buzzer</div>
+      <div class="state-item" id="stateRed"><span class="dot"></span> Red LED</div>
+      <div class="state-item" id="stateGreen"><span class="dot"></span> Green LED</div>
+      <div class="state-item" id="stateWiFi"><span class="dot"></span> Device WiFi</div>
+    </div>
+    <div class="uptime muted">Uptime: <span id="uptime">--</span></div>
+  </section>
+
+  <section class="panel">
+    <h2>Lightning Events <span id="eventCount" class="muted"></span></h2>
+    <ul id="eventList" class="event-list">
+      <li class="muted">No events yet...</li>
+    </ul>
+  </section>
+
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+
+  <script>
+    /* =========================================================
+       🔧 FIREBASE CONFIG — REPLACE WITH YOUR ACTUAL VALUES
+       Get these from: Firebase Console → Project Settings →
+       General → Your apps → Web app → SDK setup and configuration
+       ========================================================= */
+    const firebaseConfig = {
+      apiKey: "AIzaSyDTJXJ4Q6e9NL18g7VYKz4bgtARFUfTYcY",
+      authDomain: "lightning-d0982.firebaseapp.com",
+      databaseURL: "https://lightning-d0982-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "lightning-d0982",
+      storageBucket: "lightning-d0982.appspot.com",
+      messagingSenderId: "000000000000",
+      appId: "1:000000000000:web:xxxxxxxxxxxxxxxx"
+    };
+
+    /* ============ INIT ============ */
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    /* ============ DOM ============ */
+    const $ = (id) => document.getElementById(id);
+    const els = {
+      connStatus:  $("connStatus"),
+      lastUpdate:  $("lastUpdate"),
+      alertBanner: $("alertBanner"),
+      temp:  $("temp"),
+      hum:   $("hum"),
+      lux:   $("lux"),
+      prox:  $("prox"),
+      stateLightning: $("stateLightning"),
+      stateRelay:     $("stateRelay"),
+      stateBuzzer:    $("stateBuzzer"),
+      stateRed:       $("stateRed"),
+      stateGreen:     $("stateGreen"),
+      stateWiFi:      $("stateWiFi"),
+      uptime:     $("uptime"),
+      eventList:  $("eventList"),
+      eventCount: $("eventCount")
+    };
+
+    /* ============ HELPERS ============ */
+    function fmt(value, digits = 1) {
+      if (value === undefined || value === null) return "--";
+      if (typeof value === "number" && (value === -999 || value === -1)) return "--";
+      return typeof value === "number" ? value.toFixed(digits) : value;
+    }
+
+    function fmtUptime(ms) {
+      if (!ms || ms < 0) return "--";
+      const s = Math.floor(ms / 1000);
+      const h = Math.floor(s / 3600);
+      const m = Math.floor((s % 3600) / 60);
+      const sec = s % 60;
+      return `${h}h ${m}m ${sec}s`;
+    }
+
+    function setState(el, isActive, isAlert = false) {
+      el.classList.remove("active", "inactive", "alert");
+      if (isAlert)       el.classList.add("alert");
+      else if (isActive) el.classList.add("active");
+      else               el.classList.add("inactive");
+    }
+
+    /* ============ LIVE "latest" LISTENER ============ */
+    db.ref("/lightning_monitor/latest").on("value",
+      (snap) => {
+        const data = snap.val();
+        els.connStatus.textContent = "Connected";
+        els.connStatus.className = "badge online";
+
+        if (!data) {
+          els.lastUpdate.textContent = "No data yet";
+          return;
+        }
+
+        // Sensors
+        els.temp.textContent = fmt(data.temperature_C, 1);
+        els.hum.textContent  = fmt(data.humidity_percent, 0);
+        els.lux.textContent  = fmt(data.ambient_light_lux, 1);
+        els.prox.textContent = fmt(data.proximity, 0);
+
+        // States
+        setState(els.stateLightning, !!data.lightning_detected, !!data.lightning_detected);
+        setState(els.stateRelay,     !!data.relay_on);
+        setState(els.stateBuzzer,    !!data.buzzer_on, !!data.buzzer_on);
+        setState(els.stateRed,       !!data.red_led_on, !!data.red_led_on);
+        setState(els.stateGreen,     !!data.green_led_on);
+        setState(els.stateWiFi,      !!data.wifi_connected);
+
+        // Alert banner
+        els.alertBanner.classList.toggle("hidden", !data.lightning_detected);
+
+        // Uptime + last update
+        els.uptime.textContent = fmtUptime(data.uptime_ms);
+        els.lastUpdate.textContent = "Updated " + new Date().toLocaleTimeString();
+      },
+      (err) => {
+        console.error("Latest listener error:", err);
+        els.connStatus.textContent = "Error";
+        els.connStatus.className = "badge offline";
+      }
+    );
+
+    /* ============ EVENT LOG LISTENER ============ */
+    const MAX_EVENTS = 30;
+    const eventKeys = new Set();
+
+    db.ref("/lightning_monitor/events")
+      .limitToLast(MAX_EVENTS)
+      .on("child_added", (snap) => {
+        const ev = snap.val();
+        if (!ev || eventKeys.has(snap.key)) return;
+        eventKeys.add(snap.key);
+
+        const placeholder = els.eventList.querySelector("li.muted");
+        if (placeholder) placeholder.remove();
+
+        const li = document.createElement("li");
+
+        const info = document.createElement("span");
+        info.className = "event-info";
+        info.textContent = `⚡ ${ev.event_type || "EVENT"}`;
+
+        const details = document.createElement("span");
+        details.className = "event-time";
+        const t = ev.temperature_C !== undefined && ev.temperature_C !== -999
+          ? `${ev.temperature_C.toFixed(1)}°C  ` : "";
+        const h = ev.humidity_percent !== undefined && ev.humidity_percent !== -1
+          ? `${ev.humidity_percent.toFixed(0)}%  ` : "";
+        details.textContent = `${t}${h}${new Date().toLocaleTimeString()}`;
+
+        li.appendChild(info);
+        li.appendChild(details);
+        els.eventList.insertBefore(li, els.eventList.firstChild);
+
+        while (els.eventList.children.length > MAX_EVENTS) {
+          els.eventList.removeChild(els.eventList.lastChild);
+        }
+
+        const n = els.eventList.querySelectorAll("li:not(.muted)").length;
+        els.eventCount.textContent = n ? `(${n})` : "";
+      });
+
+    /* ============ CONNECTION STATE ============ */
+    db.ref(".info/connected").on("value", (snap) => {
+      if (snap.val() === true) {
+        els.connStatus.textContent = "Connected";
+        els.connStatus.className = "badge online";
+      } else {
+        els.connStatus.textContent = "Disconnected";
+        els.connStatus.className = "badge offline";
+      }
+    });
+  </script>
+</body>
+</html>
